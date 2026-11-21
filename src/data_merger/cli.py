@@ -17,7 +17,7 @@ from .audit import audit_report, read_audit
 from .config import load_config
 from .join import CONTRACTS, join_files, write_join_workbook
 from .pipeline import merge_files
-from .sqlite_export import write_sqlite
+from .sqlite_export import write_csv_dir, write_sqlite
 from .workbook import write_workbook
 
 
@@ -45,6 +45,8 @@ def build_parser() -> argparse.ArgumentParser:
                        help="never merge two rows from the same file (files have no duplicates)")
     merge.add_argument("--sqlite", type=Path, metavar="DB",
                        help="also write the result to a SQLite database (see docs/queries.sql)")
+    merge.add_argument("--csv-dir", type=Path, metavar="DIR",
+                       help="also write the same tables as one CSV file each into DIR")
     merge.add_argument("--no-lineage", action="store_true", help="skip the per-value Lineage sheet")
     merge.add_argument("--keep-placeholders", action="store_true",
                        help="leave filler contacts (none@none.com, 000-000-0000) in the output "
@@ -82,6 +84,8 @@ def _merge(args: argparse.Namespace) -> int:
     write_workbook(result, args.output)
     if args.sqlite:
         write_sqlite(result, args.sqlite)
+    if args.csv_dir:
+        write_csv_dir(result, args.csv_dir)
 
     multi = sum(len(m.members) > 1 for m in result.merged)
     print(f"Read {len(result.records)} rows from {len(args.sources)} files.")
@@ -99,6 +103,8 @@ def _merge(args: argparse.Namespace) -> int:
     print(f"Wrote {args.output}")
     if args.sqlite:
         print(f"Wrote {args.sqlite}")
+    if args.csv_dir:
+        print(f"Wrote CSV tables to {args.csv_dir}")
     return 0
 
 

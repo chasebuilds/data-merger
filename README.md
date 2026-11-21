@@ -81,7 +81,7 @@ Unmatched:      14
 Wrote samples\merged.xlsx
 ```
 
-Options: `--config merge_config.example.toml` (header overrides, thresholds, conflict rules, source priority), `--auto 0.92` and `--review 0.75` (thresholds), `--one-per-source` (never merge two rows from one file), `--sqlite merged.db` (also write a SQLite database, see [Query the result with SQL](#query-the-result-with-sql)), `--no-lineage` (skip the per-value sheet on very large runs), `--keep-placeholders` (leave filler contacts such as `none@none.com` in the output instead of blanking them).
+Options: `--config merge_config.example.toml` (header overrides, thresholds, conflict rules, source priority), `--auto 0.92` and `--review 0.75` (thresholds), `--one-per-source` (never merge two rows from one file), `--sqlite merged.db` or `--csv-dir tables` (also write the result as a SQLite database or as CSV tables, see [Query the result with SQL](#query-the-result-with-sql)), `--no-lineage` (skip the per-value sheet on very large runs), `--keep-placeholders` (leave filler contacts such as `none@none.com` in the output instead of blanking them).
 
 Three more commands cover the rest of a real job:
 
@@ -122,6 +122,8 @@ data-merger merge samples\crm_export.csv samples\billing_export.xlsx samples\mai
 | `conflicts`, `conflict_losers` | losing value, and each source row that held it | `conflict_id`; FK to `records`, `sources` |
 | `review_pairs` | pair for a person to check, with an empty `decision` column | `pair_id`; FK to `sources`, `records` |
 | `run_summary` | line of the `Summary` sheet | |
+
+`--csv-dir tables` writes the same tables as one UTF-8 CSV file each (`records.csv`, `sources.csv`, and so on), for tools that load CSV rather than SQLite. They are built through the same in-memory database, so they pass the same key checks. `NULL` becomes an empty field.
 
 Blank values are stored as `NULL`. Foreign keys are checked before the file is written; the tests also check that every table's row count equals the matching workbook sheet.
 

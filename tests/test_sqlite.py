@@ -1,5 +1,6 @@
 """SQLite export: row counts tie to the workbook, keys hold, values trace back."""
 
+import csv
 import sqlite3
 from contextlib import closing
 from pathlib import Path
@@ -7,9 +8,9 @@ from pathlib import Path
 import pytest
 from openpyxl import load_workbook
 
-from data_merger import merge_files, write_sqlite
+from data_merger import merge_files, write_csv_dir, write_sqlite
 from data_merger.cli import main
-from data_merger.sqlite_export import value_column_names
+from data_merger.sqlite_export import TABLES, value_column_names
 
 SAMPLES = Path(__file__).resolve().parent.parent / "samples"
 SAMPLE_FILES = [SAMPLES / n for n in ("crm_export.csv", "billing_export.xlsx",
@@ -160,3 +161,27 @@ def test_value_columns_that_clash_with_fixed_columns_are_renamed():
     names = value_column_names(["email", "match_score", "Record_ID", "match_score_value"])
     assert names == {"email": "email", "match_score": "match_score_value",
                      "Record_ID": "Record_ID_value", "match_score_value": "match_score_value_value"}
+
+
+def test_csv_dir_has_one_file_per_table_with_the_same_rows(tmp_path, sample_outputs):
+    _, db = sample_outputs
+    out = tmp_path / "tables"
+    assert main(["merge", *map(str, SAMPLE_FILES), "-o", str(tmp_path / "m.xlsx"),
+                 "--csv-dir", str(out)]) == 0
+    assert sorted(p.stem for p in out.glob("*.csv")) == sorted(TABLES)
+    with closing(sqlite3.connect(db)) as connection:
+        for table in TABLES:
+            with open(out / f"{table}.csv", newline="", encoding="utf-8") as handle:
+                header, *rows = list(csv.reader(handle))
+            columns = [c[1] for c in connection.execute(f"PRAGMA table_info({table})")]
+            assert header == columns, table
+            assert len(rows) == _count(db, table), table
+
+
+def test_csv_dir_writes_null_as_an_empty_field(tmp_path, three_sources):
+    paths = write_csv_dir(merge_files(three_sources), tmp_path / "t")
+    records = next(p for p in paths if p.name == "records.csv")
+    with open(records, newline="", encoding="utf-8") as handle:
+        rows = list(csv.DictReader(handle))
+    assert any(row["street"] == "" for row in rows)
+    assert "None" not in {value for row in rows for value in row.values()}

@@ -1,4 +1,4 @@
-"""Write a merge result to a SQLite database with keys, so it can be queried with SQL.
+"""Write a merge result to a SQLite database with keys, or to one CSV file per table.
 
 Tables (see docs/queries.sql for examples):
   source_files   one row per input file
@@ -12,6 +12,7 @@ Tables (see docs/queries.sql for examples):
 
 from __future__ import annotations
 
+import csv
 import sqlite3
 from pathlib import Path
 
@@ -91,6 +92,8 @@ CREATE TABLE run_summary (
 );
 """
 
+TABLES = ["source_files", "records", "sources", "lineage", "conflicts", "conflict_losers",
+          "review_pairs", "run_summary"]
 _FIXED = {"record_id", "source_count", "match_score", "match_basis"}
 
 
@@ -120,76 +123,106 @@ def _cell(value: object) -> object:
     return str(value)
 
 
+def _fill(connection: sqlite3.Connection, result: MergeResult) -> None:
+    names = value_column_names(result.columns)
+    value_sql = "".join(f",\n    {_quote(n)}" for n in names.values())
+    connection.execute("PRAGMA foreign_keys = ON")
+    with connection:
+        connection.executescript(SCHEMA.format(value_columns=value_sql))
+
+        tables = result.load.tables if result.load else {}
+        rows_per_file = result.load.rows_per_file if result.load else {}
+        files = dict.fromkeys(r.source_file for r in result.records)
+        connection.executemany(
+            "INSERT INTO source_files VALUES (?, ?, ?, ?)",
+            [(name, rows_per_file.get(name, 0),
+              tables[name].sha256 if name in tables else None,
+              tables[name].read_as if name in tables else None) for name in files],
+        )
+
+        placeholders = ", ".join("?" * (4 + len(names)))
+        connection.executemany(
+            f"INSERT INTO records VALUES ({placeholders})",
+            [(m.merged_id, len(m.members), m.match_score, m.match_basis,
+              *[_cell(m.values.get(c)) for c in names]) for m in result.merged],
+        )
+
+        source_id = {(c.source_file, c.source_row): n
+                     for n, c in enumerate(result.crosswalk, start=1)}
+        id_of_ref = {f"{f}:{r}": n for (f, r), n in source_id.items()}
+        connection.executemany(
+            "INSERT INTO sources VALUES (?, ?, ?, ?, ?, ?, ?)",
+            [(n, c.source_file, c.source_row, c.merged_id, c.tier, c.score, c.basis)
+             for n, c in enumerate(result.crosswalk, start=1)],
+        )
+
+        connection.executemany(
+            "INSERT INTO lineage VALUES (?, ?, ?, ?, ?)",
+            [(item.merged_id, item.column, _cell(item.value),
+              source_id[item.source_file, item.source_row], item.agreeing_rows)
+             for item in result.lineage],
+        )
+
+        losers: list[tuple[int, int]] = []
+        for n, c in enumerate(result.conflicts, start=1):
+            connection.execute(
+                "INSERT INTO conflicts VALUES (?, ?, ?, ?, ?, ?, ?)",
+                (n, c.merged_id, c.column, _cell(c.kept_value), id_of_ref[c.kept_source],
+                 _cell(c.lost_value), c.rule),
+            )
+            losers.extend((n, id_of_ref[ref]) for ref in c.lost_sources.split("; "))
+        connection.executemany("INSERT INTO conflict_losers VALUES (?, ?)", losers)
+
+        rows_of = {r.idx: r for r in result.records}
+        review = []
+        for n, pair in enumerate(result.review, start=1):
+            a, b = rows_of[pair.a], rows_of[pair.b]
+            review.append((n, source_id[a.source_file, a.source_row],
+                           source_id[b.source_file, b.source_row],
+                           result.merged_id_of[a.idx], result.merged_id_of[b.idx],
+                           pair.score, pair.basis, None))
+        connection.executemany("INSERT INTO review_pairs VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+                               review)
+
+        connection.executemany("INSERT INTO run_summary VALUES (?, ?)",
+                               [(k, _cell(v)) for k, v in result.summary])
+    problems = connection.execute("PRAGMA foreign_key_check").fetchall()
+    if problems:
+        raise ValueError(f"SQLite export broke {len(problems)} foreign key(s)")
+
+
 def write_sqlite(result: MergeResult, path: str | Path) -> Path:
     path = Path(path)
     path.unlink(missing_ok=True)
-    names = value_column_names(result.columns)
-    value_sql = "".join(f",\n    {_quote(n)}" for n in names.values())
     connection = sqlite3.connect(path)
     try:
-        connection.execute("PRAGMA foreign_keys = ON")
-        with connection:
-            connection.executescript(SCHEMA.format(value_columns=value_sql))
-
-            tables = result.load.tables if result.load else {}
-            rows_per_file = result.load.rows_per_file if result.load else {}
-            files = dict.fromkeys(r.source_file for r in result.records)
-            connection.executemany(
-                "INSERT INTO source_files VALUES (?, ?, ?, ?)",
-                [(name, rows_per_file.get(name, 0),
-                  tables[name].sha256 if name in tables else None,
-                  tables[name].read_as if name in tables else None) for name in files],
-            )
-
-            placeholders = ", ".join("?" * (4 + len(names)))
-            connection.executemany(
-                f"INSERT INTO records VALUES ({placeholders})",
-                [(m.merged_id, len(m.members), m.match_score, m.match_basis,
-                  *[_cell(m.values.get(c)) for c in names]) for m in result.merged],
-            )
-
-            source_id = {(c.source_file, c.source_row): n
-                         for n, c in enumerate(result.crosswalk, start=1)}
-            id_of_ref = {f"{f}:{r}": n for (f, r), n in source_id.items()}
-            connection.executemany(
-                "INSERT INTO sources VALUES (?, ?, ?, ?, ?, ?, ?)",
-                [(n, c.source_file, c.source_row, c.merged_id, c.tier, c.score, c.basis)
-                 for n, c in enumerate(result.crosswalk, start=1)],
-            )
-
-            connection.executemany(
-                "INSERT INTO lineage VALUES (?, ?, ?, ?, ?)",
-                [(item.merged_id, item.column, _cell(item.value),
-                  source_id[item.source_file, item.source_row], item.agreeing_rows)
-                 for item in result.lineage],
-            )
-
-            losers: list[tuple[int, int]] = []
-            for n, c in enumerate(result.conflicts, start=1):
-                connection.execute(
-                    "INSERT INTO conflicts VALUES (?, ?, ?, ?, ?, ?, ?)",
-                    (n, c.merged_id, c.column, _cell(c.kept_value), id_of_ref[c.kept_source],
-                     _cell(c.lost_value), c.rule),
-                )
-                losers.extend((n, id_of_ref[ref]) for ref in c.lost_sources.split("; "))
-            connection.executemany("INSERT INTO conflict_losers VALUES (?, ?)", losers)
-
-            rows_of = {r.idx: r for r in result.records}
-            review = []
-            for n, pair in enumerate(result.review, start=1):
-                a, b = rows_of[pair.a], rows_of[pair.b]
-                review.append((n, source_id[a.source_file, a.source_row],
-                               source_id[b.source_file, b.source_row],
-                               result.merged_id_of[a.idx], result.merged_id_of[b.idx],
-                               pair.score, pair.basis, None))
-            connection.executemany("INSERT INTO review_pairs VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
-                                   review)
-
-            connection.executemany("INSERT INTO run_summary VALUES (?, ?)",
-                                   [(k, _cell(v)) for k, v in result.summary])
-        problems = connection.execute("PRAGMA foreign_key_check").fetchall()
-        if problems:
-            raise ValueError(f"SQLite export broke {len(problems)} foreign key(s)")
+        _fill(connection, result)
     finally:
         connection.close()
     return path
+
+
+def write_csv_dir(result: MergeResult, directory: str | Path) -> list[Path]:
+    """Write the same tables as UTF-8 CSV files, one per table, for tools that load CSV.
+
+    The tables are built in an in-memory SQLite database first, so the CSV files have the
+    same columns and pass the same key checks as the --sqlite output. NULL becomes an empty
+    field.
+    """
+    directory = Path(directory)
+    directory.mkdir(parents=True, exist_ok=True)
+    connection = sqlite3.connect(":memory:")
+    written = []
+    try:
+        _fill(connection, result)
+        for table in TABLES:
+            cursor = connection.execute(f"SELECT * FROM {table} ORDER BY rowid")
+            path = directory / f"{table}.csv"
+            with open(path, "w", newline="", encoding="utf-8") as handle:
+                writer = csv.writer(handle)
+                writer.writerow(column[0] for column in cursor.description)
+                writer.writerows(cursor)
+            written.append(path)
+    finally:
+        connection.close()
+    return written
