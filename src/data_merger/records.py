@@ -70,7 +70,8 @@ class LoadResult:
     blank_rows: int
     unparsed: list[tuple[str, int, str, str]]  # file, row, column, raw value
     tables: dict[str, Table] = field(default_factory=dict)
-    placeholders: Counter = field(default_factory=Counter)  # (column, value) -> rows
+    # (column, value) -> rows
+    placeholders: Counter[tuple[str, str]] = field(default_factory=Counter)
     blanked: list[tuple[str, int, str, str]] = field(default_factory=list)  # file, row, col, value
     profile: dict[str, dict[str, str]] = field(default_factory=dict)
 

@@ -8,6 +8,7 @@ unmatched rows vanishing. Each one gets its own sheet here.
 from __future__ import annotations
 
 from collections import defaultdict
+from collections.abc import Sequence
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -61,9 +62,11 @@ def join_files(left_path: str | Path, right_path: str | Path, on: str,
     rk = _key_column(right.headers, right_on or on, right_path.name)
     width_l, width_r = len(left.headers), len(right.headers)
 
-    def index(rows, key_col, width, file_name):
+    def index(
+        rows: list[list[str]], key_col: int, width: int, file_name: str
+    ) -> tuple[dict[str, list[tuple[int, list[str]]]], list[tuple[str, int]]]:
         by_key: dict[str, list[tuple[int, list[str]]]] = defaultdict(list)
-        blanks = []
+        blanks: list[tuple[str, int]] = []
         for offset, row in enumerate(rows):
             if not any(row):
                 continue
@@ -125,10 +128,10 @@ def join_files(left_path: str | Path, right_path: str | Path, on: str,
     for key, rows in left_by.items():
         if key in right_by:
             continue
-        for other in loose_right.get(_loose(key), []):
-            reason = ("leading zeros" if key.lstrip("0") == other.lstrip("0")
+        for right_key in loose_right.get(_loose(key), []):
+            reason = ("leading zeros" if key.lstrip("0") == right_key.lstrip("0")
                       else "letter case, spaces or punctuation")
-            near.append((key, rows[0][0], other, right_by[other][0][0], reason))
+            near.append((key, rows[0][0], right_key, right_by[right_key][0][0], reason))
 
     rows_left = sum(len(v) for v in left_by.values())
     rows_right = sum(len(v) for v in right_by.values())
@@ -170,7 +173,7 @@ def write_join_workbook(result: JoinResult, path: str | Path) -> Path:
     path = Path(path)
     workbook = Workbook(write_only=True)
 
-    def fill(title: str, headers: list[str], rows: list) -> None:
+    def fill(title: str, headers: list[str], rows: Sequence[Sequence[object]]) -> None:
         sheet = _sheet(workbook, title, headers)
         for row in rows:
             sheet.append([safe_cell(c) for c in row])

@@ -8,6 +8,7 @@ from openpyxl import Workbook
 from openpyxl.cell import WriteOnlyCell
 from openpyxl.styles import Font, PatternFill
 from openpyxl.utils import get_column_letter
+from openpyxl.worksheet._write_only import WriteOnlyWorksheet
 
 from .pipeline import DECISION_HEADER, MergeResult
 
@@ -36,11 +37,14 @@ SHEET_GUIDE = [
 ]
 
 
-def _sheet(workbook: Workbook, title: str, headers: list[str], widths: list[int] | None = None):
-    sheet = workbook.create_sheet(title)
+def _sheet(
+    workbook: Workbook, title: str, headers: list[str], widths: list[int] | None = None
+) -> WriteOnlyWorksheet:
+    sheet: WriteOnlyWorksheet = workbook.create_sheet(title)
     for index, header in enumerate(headers, start=1):
         width = widths[index - 1] if widths else max(12, min(len(header) + 4, 40))
-        sheet.column_dimensions[get_column_letter(index)].width = width
+        # The stubs leave column_dimensions off write-only sheets; openpyxl supports it.
+        sheet.column_dimensions[get_column_letter(index)].width = width  # type: ignore[attr-defined]
     sheet.freeze_panes = "A2"
     cells = []
     for header in headers:
@@ -123,16 +127,16 @@ def write_workbook(result: MergeResult, path: str | Path) -> Path:
     ], [12, 26, 12, 12, 30, 50])
     if result.load:
         ids = {(r.source_file, r.source_row): result.merged_id_of[r.idx] for r in result.records}
-        for file, row, column, value in result.load.blanked:
-            sheet.append([ids[file, row], file, row, column, safe_cell(value),
+        for file, source_row, column, removed in result.load.blanked:
+            sheet.append([ids[file, source_row], file, source_row, column, safe_cell(removed),
                           "filler value, identifies nobody; blanked in Merged"])
 
     sheet = _sheet(workbook, "Unmatched", ["merged_id", "source_file", "source_row", "reason",
                                            *columns])
-    for row, reason in result.unmatched:
-        member = row.members[0]
-        sheet.append([row.merged_id, member.source_file, member.source_row, reason,
-                      *[safe_cell(row.values.get(c, "")) for c in columns]])
+    for single, reason in result.unmatched:
+        member = single.members[0]
+        sheet.append([single.merged_id, member.source_file, member.source_row, reason,
+                      *[safe_cell(single.values.get(c, "")) for c in columns]])
 
     sheet = _sheet(workbook, "Crosswalk", [
         "source_file", "source_row", "merged_id", "match_tier", "match_score", "match_basis",
@@ -152,10 +156,10 @@ def write_workbook(result: MergeResult, path: str | Path) -> Path:
             "sample", "stratum", "stratum_size", "match_score", AUDIT_LABEL_HEADER,
             "source [A]", "source [B]", *side,
         ])
-        for number, item in enumerate(result.audit, start=1):
-            a, b = rows_of[item.pair.a], rows_of[item.pair.b]
+        for number, sampled in enumerate(result.audit, start=1):
+            a, b = rows_of[sampled.pair.a], rows_of[sampled.pair.b]
             sheet.append([
-                number, item.stratum, item.stratum_size, item.pair.score, "", a.ref, b.ref,
+                number, sampled.stratum, sampled.stratum_size, sampled.pair.score, "", a.ref, b.ref,
                 *[safe_cell(a.values.get(c, "")) for c in columns],
                 *[safe_cell(b.values.get(c, "")) for c in columns],
             ])
@@ -170,9 +174,9 @@ def write_workbook(result: MergeResult, path: str | Path) -> Path:
             "merged_id", "column", "value", "taken_from_file", "taken_from_row",
             "source_rows_agreeing",
         ], [12, 16, 34, 26, 16, 22])
-        for item in result.lineage:
-            sheet.append([item.merged_id, item.column, safe_cell(item.value), item.source_file,
-                          item.source_row, item.agreeing_rows])
+        for trace in result.lineage:
+            sheet.append([trace.merged_id, trace.column, safe_cell(trace.value),
+                          trace.source_file, trace.source_row, trace.agreeing_rows])
 
     sheet = _sheet(workbook, "Summary", ["metric", "value"], [58, 70])
     for metric, value in summary:

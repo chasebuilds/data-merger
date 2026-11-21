@@ -89,9 +89,9 @@ def _merge(args: argparse.Namespace) -> int:
     print(f"Review pairs:   {len(result.review)}")
     print(f"Conflicts kept: {len(result.conflicts)}")
     print(f"Unmatched:      {len(result.unmatched)}")
-    if result.load.blanked:
+    if result.load and result.load.blanked:
         print(f"Placeholders:   {len(result.load.blanked)} filler contacts blanked")
-    if args.decisions:
+    if args.decisions and result.match:
         applied = result.match.decisions_applied
         print(f"Decisions used: {applied['same']} same, {applied['different']} different")
     if result.audit:

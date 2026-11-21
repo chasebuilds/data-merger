@@ -61,8 +61,8 @@ def read_audit(path: str | Path) -> list[Stratum]:
     label_col = header.index(AUDIT_LABEL_HEADER)
     strata: dict[str, Stratum] = {}
     for row in rows[1:]:
-        stratum = strata.setdefault(row[name_col], Stratum(row[name_col], int(row[size_col]),
-                                                           0, 0, 0))
+        name = str(row[name_col])
+        stratum = strata.setdefault(name, Stratum(name, int(float(str(row[size_col]))), 0, 0, 0))
         stratum.sampled += 1
         label = str(row[label_col] or "").strip().lower()
         if label in _SAME | _DIFFERENT:
@@ -79,7 +79,7 @@ def audit_report(strata: list[Stratum]) -> str:
         lines.append(f"{stratum.name}")
         lines.append(f"  links of this kind in the run: {stratum.size}, sampled: "
                      f"{stratum.sampled}, labeled: {stratum.labeled}")
-        if stratum.labeled:
+        if stratum.interval is not None and stratum.share_same is not None:
             low, high = stratum.interval
             lines.append(f"  {kind}: {stratum.same} of {stratum.labeled} "
                          f"({100 * stratum.share_same:.1f}%, 95% interval "
@@ -89,7 +89,7 @@ def audit_report(strata: list[Stratum]) -> str:
     done = [s for s in merged if s.labeled]
     if done and len(done) == len(merged):
         total = sum(s.size for s in merged)
-        estimate = sum(s.size * s.share_same for s in merged) / total
+        estimate = sum(s.size * s.same / s.labeled for s in done) / total
         lines += ["", f"Estimated share of all {total} merge links that are correct: "
                       f"{100 * estimate:.1f}% (each reason weighted by how often it was used)."]
     elif merged:

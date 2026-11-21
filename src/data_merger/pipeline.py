@@ -146,7 +146,8 @@ def merge_files(
     started = time.perf_counter()
     load = load_sources(files, config)
     loaded = time.perf_counter()
-    decisions, decision_counts = {}, {}
+    decisions: dict[tuple[int, int], str] = {}
+    decision_counts: dict[str, int] = {}
     if decisions_from is not None:
         decisions, decision_counts = read_decisions(Path(decisions_from), load.records)
     match = match_records(load.records, config, decisions)

@@ -1,6 +1,7 @@
 """SQLite export: row counts tie to the workbook, keys hold, values trace back."""
 
 import sqlite3
+from contextlib import closing
 from pathlib import Path
 
 import pytest
@@ -33,7 +34,7 @@ def _sheet_rows(path, name):
 
 
 def _count(db, table):
-    with sqlite3.connect(db) as connection:
+    with closing(sqlite3.connect(db)) as connection:
         return connection.execute(f"SELECT COUNT(*) FROM {table}").fetchone()[0]
 
 
@@ -48,7 +49,7 @@ def test_row_counts_tie_to_the_workbook(sample_outputs, sheet, table):
 
 def test_sample_counts_match_the_readme(sample_outputs):
     _, db = sample_outputs
-    with sqlite3.connect(db) as connection:
+    with closing(sqlite3.connect(db)) as connection:
         one = connection.execute
         assert one("SELECT COUNT(*) FROM sources").fetchone()[0] == 61
         assert one("SELECT COUNT(*) FROM records").fetchone()[0] == 33
@@ -75,7 +76,7 @@ def test_foreign_keys_hold_and_are_enforced(sample_outputs):
 
 def test_source_count_equals_rows_pointing_at_each_record(sample_outputs):
     _, db = sample_outputs
-    with sqlite3.connect(db) as connection:
+    with closing(sqlite3.connect(db)) as connection:
         mismatched = connection.execute("""
             SELECT r.record_id FROM records r
             LEFT JOIN sources s ON s.record_id = r.record_id
@@ -108,7 +109,7 @@ def test_conflict_losers_cover_every_lost_source(sample_outputs):
 
 def test_readme_example_conflict_is_queryable(sample_outputs):
     _, db = sample_outputs
-    with sqlite3.connect(db) as connection:
+    with closing(sqlite3.connect(db)) as connection:
         row = connection.execute("""
             SELECT c.kept_value, c.lost_value, s.source_file || ':' || s.source_row, c.rule
             FROM conflicts c
@@ -121,7 +122,7 @@ def test_readme_example_conflict_is_queryable(sample_outputs):
 
 def test_blank_values_are_null(sample_outputs):
     _, db = sample_outputs
-    with sqlite3.connect(db) as connection:
+    with closing(sqlite3.connect(db)) as connection:
         empty = connection.execute("SELECT COUNT(*) FROM records WHERE email = ''").fetchone()[0]
     assert empty == 0
 
@@ -130,7 +131,7 @@ def test_review_pairs_point_at_both_records(tmp_path, write_csv):
     a = write_csv("a.csv", ["Name", "Zip", "Email"], [["Ana Ruiz", "45402", "ana@example.com"]])
     b = write_csv("b.csv", ["Name", "Zip", "Email"], [["Ana Ruiz", "45402", "ar@example.org"]])
     db = write_sqlite(merge_files([a, b]), tmp_path / "out.db")
-    with sqlite3.connect(db) as connection:
+    with closing(sqlite3.connect(db)) as connection:
         rows = connection.execute("""
             SELECT sa.source_file, sb.source_file, p.record_a != p.record_b, p.decision
             FROM review_pairs p

@@ -171,8 +171,11 @@ def score_pair(a: Record, b: Record) -> tuple[float, str]:
         return 0.0, "no shared evidence"
     if first is not None and last is not None:
         name = 0.4 * first + 0.6 * last
+    elif first is not None:
+        name = 0.8 * first
     else:
-        name = 0.8 * (first if first is not None else last)
+        assert last is not None
+        name = 0.8 * last
 
     address = _address_sim(a, b)
     company = fuzz.token_sort_ratio(a.company, b.company) / 100 if a.company and b.company else 0.0
@@ -273,8 +276,8 @@ def match_records(
 
     def join(pair: PairScore) -> None:
         ra, rb = uf.find(pair.a), uf.find(pair.b)
-        link = min((weakest.get(ra), weakest.get(rb), pair),
-                   key=lambda p: p.score if p else 2.0)
+        link = min((p for p in (weakest.get(ra), weakest.get(rb), pair) if p is not None),
+                   key=lambda p: p.score)
         uf.union(pair.a, pair.b)
         weakest.pop(rb, None)
         weakest[uf.find(pair.a)] = link
@@ -325,7 +328,7 @@ def match_records(
     roots = sorted(grouped, key=lambda r: min(grouped[r]))
     clusters = [sorted(grouped[r]) for r in roots]
     scores = [weakest[r].score if r in weakest else None for r in roots]
-    basis = [weakest[r].basis if r in weakest else "" for r in roots]
+    cluster_basis = [weakest[r].basis if r in weakest else "" for r in roots]
 
     # One review row per pair of merged records: the strongest candidate between them.
     # A pair a reviewer already ruled on is not asked again.
@@ -344,5 +347,5 @@ def match_records(
     near = sorted((p for p in near if uf.find(p.a) != uf.find(p.b)),
                   key=lambda p: (-p.score, p.a, p.b))
     auto_pairs = sum(len(c) * (len(c) - 1) // 2 for c in clusters)
-    return MatchResult(clusters, scores, basis, review, len(pairs), auto_pairs, skipped,
+    return MatchResult(clusters, scores, cluster_basis, review, len(pairs), auto_pairs, skipped,
                        links, near, dict(held), pairs, applied)

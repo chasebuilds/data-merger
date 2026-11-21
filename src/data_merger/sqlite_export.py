@@ -164,7 +164,7 @@ def write_sqlite(result: MergeResult, path: str | Path) -> Path:
                  for item in result.lineage],
             )
 
-            losers = []
+            losers: list[tuple[int, int]] = []
             for n, c in enumerate(result.conflicts, start=1):
                 connection.execute(
                     "INSERT INTO conflicts VALUES (?, ?, ?, ?, ?, ?, ?)",

@@ -185,10 +185,13 @@ Short version: United States formats, English-language names, people and contact
 
 ```
 .venv\Scripts\python -m pip install -e ".[dev]"
-.venv\Scripts\python -m pytest
+.venv\Scripts\python -m pytest --cov
 .venv\Scripts\python -m ruff check .
+.venv\Scripts\python -m mypy
 .venv\Scripts\python -m benchmark.run_benchmark
 ```
+
+CI runs ruff, mypy in strict mode on `src/`, and the tests with a coverage report, on Python 3.11 and 3.13.
 
 The sample inputs were made with `python -m benchmark.generate --entities 30 --sources 3 --seed 7 --out samples --no-truth`.
 
