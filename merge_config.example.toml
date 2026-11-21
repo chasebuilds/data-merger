@@ -1,0 +1,30 @@
+# Example config for: data-merger merge ... --config merge_config.example.toml
+# Every section is optional. The values shown are the defaults unless marked "example".
+
+[thresholds]
+auto = 0.88     # pairs scoring this or higher are merged
+review = 0.70   # pairs between review and auto go to the Review sheet
+
+[options]
+dayfirst = false       # true reads 05/03/2026 as 5 March
+max_block_size = 400   # a key shared by more rows than this is not used for matching
+lineage = true         # false leaves out the per-value Lineage sheet
+max_cluster_size = 12  # a merge that would make a bigger record goes to Review
+one_per_source = false # true: never merge two rows from the same file
+strong_key_guard = true  # hold fuzzy merges between groups whose emails and phones differ
+
+# One rule per column: most_recent, most_common, most_complete, source_priority.
+[rules]
+default = "most_recent"
+first_name = "most_common"
+last_name = "most_common"
+balance = "source_priority"   # example: trust the billing system for money
+
+# Files listed first win source_priority decisions and break ties. Example order.
+[source_priority]
+order = ["billing_export.xlsx", "crm_export.csv", "mailing_list.csv"]
+
+# Header overrides, per file. Targets: first_name, last_name, full_name, email, phone,
+# company, street, full_address, city, state, postal_code, balance, updated_at, ignore.
+[mapping."mailing_list.csv"]
+subscribed_on = "ignore"      # example: leave this column out of the output
