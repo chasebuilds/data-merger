@@ -1,6 +1,7 @@
 """Command line.
 
 data-merger merge a.csv b.xlsx c.csv -o merged.xlsx    fuzzy merge of overlapping lists
+data-merger merge a.csv b.csv --sqlite merged.db       also write a SQLite database
 data-merger audit merged.xlsx                          precision from a labeled Audit sheet
 data-merger join a.csv b.csv --on customer_id          exact join on an ID column
 """
@@ -16,6 +17,7 @@ from .audit import audit_report, read_audit
 from .config import load_config
 from .join import CONTRACTS, join_files, write_join_workbook
 from .pipeline import merge_files
+from .sqlite_export import write_sqlite
 from .workbook import write_workbook
 
 
@@ -41,6 +43,8 @@ def build_parser() -> argparse.ArgumentParser:
     merge.add_argument("--audit-seed", type=int, default=0, help="seed for the audit sample")
     merge.add_argument("--one-per-source", action="store_true",
                        help="never merge two rows from the same file (files have no duplicates)")
+    merge.add_argument("--sqlite", type=Path, metavar="DB",
+                       help="also write the result to a SQLite database (see docs/queries.sql)")
     merge.add_argument("--no-lineage", action="store_true", help="skip the per-value Lineage sheet")
     merge.add_argument("--keep-placeholders", action="store_true",
                        help="leave filler contacts (none@none.com, 000-000-0000) in the output "
@@ -76,6 +80,8 @@ def _merge(args: argparse.Namespace) -> int:
     if args.no_lineage or not config.lineage:
         result.lineage = []
     write_workbook(result, args.output)
+    if args.sqlite:
+        write_sqlite(result, args.sqlite)
 
     multi = sum(len(m.members) > 1 for m in result.merged)
     print(f"Read {len(result.records)} rows from {len(args.sources)} files.")
@@ -91,6 +97,8 @@ def _merge(args: argparse.Namespace) -> int:
     if result.audit:
         print(f"Audit sample:   {len(result.audit)} pairs to label")
     print(f"Wrote {args.output}")
+    if args.sqlite:
+        print(f"Wrote {args.sqlite}")
     return 0
 
 

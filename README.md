@@ -81,7 +81,7 @@ Unmatched:      14
 Wrote samples\merged.xlsx
 ```
 
-Options: `--config merge_config.example.toml` (header overrides, thresholds, conflict rules, source priority), `--auto 0.92` and `--review 0.75` (thresholds), `--one-per-source` (never merge two rows from one file), `--no-lineage` (skip the per-value sheet on very large runs), `--keep-placeholders` (leave filler contacts such as `none@none.com` in the output instead of blanking them).
+Options: `--config merge_config.example.toml` (header overrides, thresholds, conflict rules, source priority), `--auto 0.92` and `--review 0.75` (thresholds), `--one-per-source` (never merge two rows from one file), `--sqlite merged.db` (also write the result to a SQLite database with keys), `--no-lineage` (skip the per-value sheet on very large runs), `--keep-placeholders` (leave filler contacts such as `none@none.com` in the output instead of blanking them).
 
 Three more commands cover the rest of a real job:
 
