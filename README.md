@@ -2,6 +2,8 @@
 
 Turns several overlapping customer lists (CSV or Excel, different headers, different formats) into one workbook where each real-world record appears once and every value can be traced back to the file and row it came from.
 
+![One customer as it appears in three different files above, and the single merged record below](docs/preview.png)
+
 ## Measured result
 
 Scored against generated data where the right answer is known. The table below is written by the benchmark script from a real run, not typed by hand. Full report, precision by match reason, and its limits: [BENCHMARK.md](BENCHMARK.md).
