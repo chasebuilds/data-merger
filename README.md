@@ -1,5 +1,7 @@
 # data-merger
 
+[![ci](https://github.com/chasebuilds/data-merger/actions/workflows/ci.yml/badge.svg)](https://github.com/chasebuilds/data-merger/actions/workflows/ci.yml) ![Python 3.11+](https://img.shields.io/badge/python-3.11%2B-blue) [![MIT license](https://img.shields.io/badge/license-MIT-green)](LICENSE)
+
 Turns several overlapping customer lists (CSV or Excel, different headers, different formats) into one workbook where each real-world record appears once and every value can be traced back to the file and row it came from.
 
 ![One customer as it appears in three different files above, and the single merged record below](docs/preview.png)
