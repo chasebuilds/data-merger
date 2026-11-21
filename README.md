@@ -81,7 +81,7 @@ Unmatched:      14
 Wrote samples\merged.xlsx
 ```
 
-Options: `--config merge_config.example.toml` (header overrides, thresholds, conflict rules, source priority), `--auto 0.92` and `--review 0.75` (thresholds), `--one-per-source` (never merge two rows from one file), `--sqlite merged.db` (also write the result to a SQLite database with keys), `--no-lineage` (skip the per-value sheet on very large runs), `--keep-placeholders` (leave filler contacts such as `none@none.com` in the output instead of blanking them).
+Options: `--config merge_config.example.toml` (header overrides, thresholds, conflict rules, source priority), `--auto 0.92` and `--review 0.75` (thresholds), `--one-per-source` (never merge two rows from one file), `--sqlite merged.db` (also write a SQLite database, see [Query the result with SQL](#query-the-result-with-sql)), `--no-lineage` (skip the per-value sheet on very large runs), `--keep-placeholders` (leave filler contacts such as `none@none.com` in the output instead of blanking them).
 
 Three more commands cover the rest of a real job:
 
@@ -104,6 +104,47 @@ from data_merger import merge_files, write_workbook
 result = merge_files(["crm_export.csv", "billing_export.xlsx", "mailing_list.csv"])
 write_workbook(result, "merged.xlsx")
 ```
+
+## Query the result with SQL
+
+`--sqlite merged.db` writes the same result to a SQLite database (Python's built-in `sqlite3`, no extra install), so it can be checked with SQL or loaded into another tool.
+
+```
+data-merger merge samples\crm_export.csv samples\billing_export.xlsx samples\mailing_list.csv -o merged.xlsx --sqlite merged.db
+```
+
+| Table | One row per | Keys |
+|---|---|---|
+| `source_files` | input file: rows read, SHA-256, how it was read | `file_name` |
+| `sources` | source row, the record it went to, and how (the `Crosswalk` sheet) | `source_id`; unique `(source_file, source_row)`; FK to `source_files`, `records` |
+| `records` | merged record, one column per field (the `Merged` sheet) | `record_id` |
+| `lineage` | field of a record: kept value and the source row it came from | `(record_id, field)`; FK to `records`, `sources` |
+| `conflicts`, `conflict_losers` | losing value, and each source row that held it | `conflict_id`; FK to `records`, `sources` |
+| `review_pairs` | pair for a person to check, with an empty `decision` column | `pair_id`; FK to `sources`, `records` |
+| `run_summary` | line of the `Summary` sheet | |
+
+Blank values are stored as `NULL`. Foreign keys are checked before the file is written; the tests also check that every table's row count equals the matching workbook sheet.
+
+[`docs/queries.sql`](docs/queries.sql) has eight example queries: records built from 3 or more rows, fields with the most conflicts, unmatched rows per file, overlap between each pair of files, which file supplied the kept value for each field (a window function), every losing value with its file and row, the review queue side by side, and contact values on merged records that only one row supports. Each one is run against the sample output by the test suite.
+
+Unmatched rows per file, on the sample:
+
+```sql
+SELECT f.file_name, f.rows_read,
+       COUNT(r.record_id) AS unmatched_rows,
+       ROUND(100.0 * COUNT(r.record_id) / f.rows_read, 1) AS unmatched_pct
+FROM source_files f
+LEFT JOIN sources s ON s.source_file = f.file_name
+LEFT JOIN records r ON r.record_id = s.record_id AND r.source_count = 1
+GROUP BY f.file_name
+ORDER BY unmatched_pct DESC;
+```
+
+| file_name | rows_read | unmatched_rows | unmatched_pct |
+|---|---:|---:|---:|
+| mailing_list.csv | 23 | 7 | 30.4 |
+| crm_export.csv | 18 | 4 | 22.2 |
+| billing_export.xlsx | 20 | 3 | 15.0 |
 
 ## How it works
 
