@@ -159,7 +159,8 @@ def test_workbook_has_every_sheet_and_reads_xlsx_sources(tmp_path, three_sources
     result = merge_files(three_sources)
     out = write_workbook(result, tmp_path / "out.xlsx")
     workbook = load_workbook(out)
-    assert workbook.sheetnames == ["Read me", "Merged", "Review", "Conflicts", "Unmatched",
+    assert workbook.sheetnames == ["Read me", "Merged", "Review", "Conflicts", "Placeholders",
+                                   "Unmatched",
                                    "Crosswalk", "Mapping", "Lineage", "Summary"]
     merged = list(workbook["Merged"].iter_rows(values_only=True))
     assert merged[0][0] == "merged_id"
@@ -209,3 +210,30 @@ def test_cli_reports_missing_file_and_bad_thresholds(tmp_path, three_sources, ca
     assert main(["merge", *map(str, three_sources), "--auto", "0.5", "--review", "0.9",
                  "-o", str(tmp_path / "x.xlsx")]) == 2
     assert "Thresholds" in capsys.readouterr().err
+
+
+def test_quickbooks_style_headers_and_one_line_address(write_csv):
+    # QuickBooks exports "Open Balance" and puts the whole address in "Billing Address"
+    qb = write_csv("qb.csv", ["Customer", "Email", "Billing Address", "Open Balance"], [
+        ["Torres, Angela", "angela@torresclean.com", "7 Ash Ct, Lexington, KY 40503", "$75.00"],
+    ])
+    result = merge_files([qb])
+    values = result.merged[0].values
+    assert values["balance"] == 75.0
+    assert values["street"] == "7 Ash Ct"
+    assert values["city"] == "Lexington"
+    assert values["postal_code"] == "40503"
+
+
+def test_street_column_without_city_and_zip_stays_whole(write_csv):
+    path = write_csv("crm.csv", ["Name", "Address"], [["Ann Lee", "12 Oak St, Apt 4"]])
+    assert merge_files([path]).merged[0].values["street"] == "12 Oak St, Apt 4"
+
+
+def test_merged_columns_are_wide_enough_for_their_values(three_sources, tmp_path):
+    out = write_workbook(merge_files(three_sources), tmp_path / "out.xlsx")
+    sheet = load_workbook(out)["Merged"]
+    headers = [c.value for c in sheet[1]]
+    email_col = sheet.column_dimensions[chr(ord("A") + headers.index("email"))]
+    longest = max(len(str(c.value or "")) for c in sheet[chr(ord("A") + headers.index("email"))])
+    assert email_col.width >= longest

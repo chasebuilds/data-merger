@@ -14,6 +14,7 @@ What data-merger does not do, or does poorly. Read this before trusting a merge.
 - **Short first names with a typo** ("Amy" typed as "Any") fall below the similarity cutoff and are not matched by name.
 - **Swapped fields are not detected.** A first name typed in the last-name column will not match.
 - **Shared values are skipped when very common.** If more than 400 rows share one email or phone (a switchboard number, a placeholder like `none@none.com`), that key is not used for matching. The skipped keys are listed in `Summary`.
+- **Placeholder detection is a fixed list.** Emails whose name part is a filler word (`none`, `test`, `noemail`, `n/a`, `unknown`, and a few more) and phones such as `000-000-0000` or `123-456-7890` are blanked in the output by default. A filler outside that list (`fake@fake.com`) is kept and, if repeated a lot, only skipped for matching.
 - **Review pairs are one per pair of merged records**, the strongest one. Weaker candidate pairs between the same two records are not listed separately.
 - **Review decisions are matched by file name and row number.** `--decisions` applies an answer only if both rows still exist at the same row numbers. If a source file was re-exported with rows in a different order, answers can attach to the wrong rows; rerun the review in that case.
 - **The output workbook is not a valid input.** Its first sheet is `Read me`. To merge a result with another file, save the `Merged` sheet as its own file first.

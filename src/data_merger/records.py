@@ -71,6 +71,7 @@ class LoadResult:
     unparsed: list[tuple[str, int, str, str]]  # file, row, column, raw value
     tables: dict[str, Table] = field(default_factory=dict)
     placeholders: Counter = field(default_factory=Counter)  # (column, value) -> rows
+    blanked: list[tuple[str, int, str, str]] = field(default_factory=list)  # file, row, col, value
     profile: dict[str, dict[str, str]] = field(default_factory=dict)
 
 
@@ -134,6 +135,11 @@ def _set_keys(record: Record) -> list[tuple[str, str]]:
         if key and is_placeholder(column, key):
             ignored.append((column, str(values[column])))
             setattr(record, column, "")
+    # "n/a" or "none" typed in the phone column has no digits, so it never reached the check
+    raw_phone = str(values.get("phone", ""))
+    word = re.sub(r"[^a-z]", "", raw_phone.lower())
+    if raw_phone and not record.phone and word in _PLACEHOLDER_LOCALS:
+        ignored.append(("phone", raw_phone))
     record.first = nz.first_name_key(str(values.get("first_name", "")))
     record.last = nz.last_name_key(str(values.get("last_name", "")))
     street = str(values.get("street", ""))
@@ -187,7 +193,9 @@ def load_sources(paths: list[Path], config: Config) -> LoadResult:
                 if mapping.target == "full_name":
                     parts = dict(zip(("first_name", "last_name"), nz.split_full_name(cell),
                                      strict=True))
-                elif mapping.target == "full_address":
+                elif mapping.target in ("full_address", "street"):
+                    # "Address" columns often hold the whole line; split only the exact
+                    # "street, city, ST 12345" form, anything else stays in street
                     parts = nz.split_full_address(cell)
                 elif mapping.target.startswith("extra:"):
                     name = mapping.target.removeprefix("extra:")
@@ -209,7 +217,12 @@ def load_sources(paths: list[Path], config: Config) -> LoadResult:
                     elif column not in extras:
                         extras.append(column)
             record = Record(len(records), path.name, row_number, values)
-            result.placeholders.update(_set_keys(record))
+            ignored = _set_keys(record)
+            result.placeholders.update(ignored)
+            if config.placeholders == "blank":
+                for column, value in ignored:
+                    del values[column]
+                    result.blanked.append((path.name, row_number, column, value))
             records.append(record)
         result.rows_per_file[path.name] = len(records) - start
         if len(records) > start:

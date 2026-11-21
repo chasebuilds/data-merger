@@ -25,8 +25,8 @@ Python 3.14.3 on Windows, one process, default settings
 | Review pairs that are real matches | 104 | 1,134 |
 | Pairs compared after blocking | 7,105 of 4,197,753 | 345,282 of 406,452,816 |
 | Blocking recall (true pairs that were compared at all) | 99.65% | 99.71% |
-| Run time: match and resolve | 0.4 s | 5.1 s |
-| Run time: write workbook | 0.8 s | 7.6 s |
+| Run time: match and resolve | 0.4 s | 3.9 s |
+| Run time: write workbook | 0.8 s | 7.3 s |
 
 ## How to read it
 

@@ -12,6 +12,7 @@ lineage = true         # false leaves out the per-value Lineage sheet
 max_cluster_size = 12  # a merge that would make a bigger record goes to Review
 one_per_source = false # true: never merge two rows from the same file
 strong_key_guard = true  # hold fuzzy merges between groups whose emails and phones differ
+placeholders = "blank"   # blank filler contacts (none@none.com) in the output; "keep" leaves them
 
 # One rule per column: most_recent, most_common, most_complete, source_priority.
 [rules]

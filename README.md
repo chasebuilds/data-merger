@@ -23,8 +23,8 @@ Scored against generated data where the right answer is known. The table below i
 | Review pairs that are real matches | 104 | 1,134 |
 | Pairs compared after blocking | 7,105 of 4,197,753 | 345,282 of 406,452,816 |
 | Blocking recall (true pairs that were compared at all) | 99.65% | 99.71% |
-| Run time: match and resolve | 0.4 s | 5.1 s |
-| Run time: write workbook | 0.8 s | 7.6 s |
+| Run time: match and resolve | 0.4 s | 3.9 s |
+| Run time: write workbook | 0.8 s | 7.3 s |
 <!-- benchmark:end -->
 
 A false merge (two different people glued into one record) is the costly error, so the tool is tuned to send doubtful pairs to a review sheet instead of merging them. An earlier version made one false merge on this benchmark; BENCHMARK.md shows it, the rule added for it, and what that rule cost in recall.
@@ -77,7 +77,7 @@ Unmatched:      14
 Wrote samples\merged.xlsx
 ```
 
-Options: `--config merge_config.example.toml` (header overrides, thresholds, conflict rules, source priority), `--auto 0.92` and `--review 0.75` (thresholds), `--one-per-source` (never merge two rows from one file), `--no-lineage` (skip the per-value sheet on very large runs).
+Options: `--config merge_config.example.toml` (header overrides, thresholds, conflict rules, source priority), `--auto 0.92` and `--review 0.75` (thresholds), `--one-per-source` (never merge two rows from one file), `--no-lineage` (skip the per-value sheet on very large runs), `--keep-placeholders` (leave filler contacts such as `none@none.com` in the output instead of blanking them).
 
 Three more commands cover the rest of a real job:
 
@@ -108,7 +108,7 @@ write_workbook(result, "merged.xlsx")
 3. **Blocking.** Two rows are compared only if they share a cheap key (same email, same phone, similar-sounding surname plus first initial, same ZIP plus house number, same company plus first initial). The benchmark table shows how many comparisons this saves.
 4. **Scoring.** Each candidate pair gets a score from 0 to 1 and a plain reason. Same email with agreeing names scores highest. Same phone needs the names to agree too. With no shared email or phone, the name must match (nicknames and one-letter typos allowed) and an address or company must back it up.
 5. **Three bands.** 0.88 and up is merged. 0.70 to 0.88 goes to the `Review` sheet. Below 0.70 the rows stay separate. Both thresholds can be changed.
-6. **Guards on every merge.** Merging A with B and B with C can glue A to C even if A and C are clearly different people. Before two groups are joined, the pair goes to `Review` instead if any of these is true: two rows across the groups have clashing first names; the link is fuzzy and the groups hold different emails and different phones; the result would be larger than 12 rows; a reviewer already marked the two as different. Placeholder values such as `none@none.com` or `000-000-0000` are never used as a reason to merge, and are listed in `Summary`.
+6. **Guards on every merge.** Merging A with B and B with C can glue A to C even if A and C are clearly different people. Before two groups are joined, the pair goes to `Review` instead if any of these is true: two rows across the groups have clashing first names; the link is fuzzy and the groups hold different emails and different phones; the result would be larger than 12 rows; a reviewer already marked the two as different. Placeholder values such as `none@none.com` or `000-000-0000` are never used as a reason to merge. By default they are also blanked in the output and each one is listed on the `Placeholders` sheet.
 7. **Conflict resolution.** When merged rows disagree, one value is kept by rule: `most_recent` (default), `most_common` (default for names, so one typo is outvoted), `most_complete`, or `source_priority`. Rules are set per column. An address is treated as one fact, so the street never comes from one source and the city from another.
 
 ## What a client receives
@@ -120,6 +120,7 @@ One Excel workbook with these sheets:
 | `Merged` | One row per real-world record, with `source_count`, `source_files`, `source_rows`, `match_score` and `match_basis` |
 | `Review` | Pairs the tool was not sure about, both records side by side, with a blank decision column to fill in |
 | `Conflicts` | Every value that lost to another, where it came from, and which rule decided |
+| `Placeholders` | Filler contacts (`none@none.com`, `test@test.com`, `noemail@...`, `n/a`, `000-000-0000`) blanked in `Merged`, each with its file, row and merged record. `--keep-placeholders` or `placeholders = "keep"` in the config leaves them as typed |
 | `Unmatched` | Records found in only one row of one file, and whether a possible match is waiting in `Review` |
 | `Crosswalk` | One row per source row: the merged record it went to, and whether by exact key, fuzzy match or human decision |
 | `Mapping` | How each source header was mapped, by which method, with what score |

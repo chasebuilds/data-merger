@@ -247,6 +247,9 @@ def merge_files(
         *[(f"Not parsed: {f} row {r}, {c}", v) for f, r, c, v in load.unparsed[:25]],
         ("Placeholder emails and phones not used for matching",
          sum(load.placeholders.values())),
+        ("Placeholder emails and phones in the output",
+         f"blanked: {len(load.blanked)} cells, each on the Placeholders sheet"
+         if config.placeholders == "blank" else "kept as typed (options.placeholders = keep)"),
         *[(f"Placeholder {column}: {value}", f"{count} rows")
           for (column, value), count in load.placeholders.most_common(25)],
         ("Candidate pairs compared (after blocking)", match.candidate_pairs),

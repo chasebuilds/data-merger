@@ -24,6 +24,8 @@ SHEET_GUIDE = [
                "decision column; a rerun with --decisions applies your answers."),
     ("Conflicts", "Every value that lost to another when merged rows disagreed, where it came "
                   "from, and which rule decided."),
+    ("Placeholders", "Filler contacts such as none@none.com or 000-000-0000 that were blanked "
+                     "in Merged, with the file and row each came from."),
     ("Unmatched", "Records found in only one row of one file."),
     ("Crosswalk", "One row per source row: which merged record it went to and how."),
     ("Mapping", "How each source column header was understood. Check this first."),
@@ -78,12 +80,22 @@ def write_workbook(result: MergeResult, path: str | Path) -> Path:
         sheet.append([name, text])
 
     lineage_cols = ["source_count", "source_files", "source_rows", "match_score", "match_basis"]
-    sheet = _sheet(workbook, "Merged", ["merged_id", *columns, *lineage_cols])
-    for row in result.merged:
-        sheet.append([
+    headers = ["merged_id", *columns, *lineage_cols]
+    rows = [
+        [
             row.merged_id, *[safe_cell(row.values.get(c, "")) for c in columns],
             len(row.members), row.source_files, row.source_rows, row.match_score, row.match_basis,
-        ])
+        ]
+        for row in result.merged
+    ]
+    # size to the content so emails and phones are not cut off when the client opens it
+    widths = [
+        max(12, min(40, 2 + max([len(h)] + [len(str(r[i])) for r in rows[:2000]])))
+        for i, h in enumerate(headers)
+    ]
+    sheet = _sheet(workbook, "Merged", headers, widths)
+    for row in rows:
+        sheet.append(row)
 
     side = [f"{c} [A]" for c in columns] + [f"{c} [B]" for c in columns]
     sheet = _sheet(workbook, "Review", [
@@ -105,6 +117,15 @@ def write_workbook(result: MergeResult, path: str | Path) -> Path:
     for c in result.conflicts:
         sheet.append([c.merged_id, c.column, safe_cell(c.kept_value), c.kept_source,
                       safe_cell(c.lost_value), c.lost_sources, c.rule])
+
+    sheet = _sheet(workbook, "Placeholders", [
+        "merged_id", "source_file", "source_row", "column", "value_removed", "reason",
+    ], [12, 26, 12, 12, 30, 50])
+    if result.load:
+        ids = {(r.source_file, r.source_row): result.merged_id_of[r.idx] for r in result.records}
+        for file, row, column, value in result.load.blanked:
+            sheet.append([ids[file, row], file, row, column, safe_cell(value),
+                          "filler value, identifies nobody; blanked in Merged"])
 
     sheet = _sheet(workbook, "Unmatched", ["merged_id", "source_file", "source_row", "reason",
                                            *columns])

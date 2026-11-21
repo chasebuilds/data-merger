@@ -56,7 +56,7 @@ SYNONYMS: dict[str, tuple[str, ...]] = {
     "postal_code": ("postal code", "zip", "zip code", "zipcode", "postcode", "postal"),
     "balance": (
         "balance", "balance due", "amount due", "outstanding", "outstanding balance",
-        "account balance", "amount owed",
+        "account balance", "amount owed", "open balance",
     ),
     "updated_at": (
         "updated at", "updated", "last updated", "last modified", "modified",

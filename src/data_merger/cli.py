@@ -42,6 +42,9 @@ def build_parser() -> argparse.ArgumentParser:
     merge.add_argument("--one-per-source", action="store_true",
                        help="never merge two rows from the same file (files have no duplicates)")
     merge.add_argument("--no-lineage", action="store_true", help="skip the per-value Lineage sheet")
+    merge.add_argument("--keep-placeholders", action="store_true",
+                       help="leave filler contacts (none@none.com, 000-000-0000) in the output "
+                            "instead of blanking them")
 
     audit = commands.add_parser("audit", help="report match quality from a labeled Audit sheet")
     audit.add_argument("workbook", type=Path)
@@ -65,6 +68,8 @@ def _merge(args: argparse.Namespace) -> int:
         config.review_threshold = args.review
     if args.one_per_source:
         config.one_per_source = True
+    if args.keep_placeholders:
+        config.placeholders = "keep"
     config.validate()
     result = merge_files(args.sources, config, decisions_from=args.decisions,
                          audit_sample=args.audit_sample, audit_seed=args.audit_seed)
@@ -78,6 +83,8 @@ def _merge(args: argparse.Namespace) -> int:
     print(f"Review pairs:   {len(result.review)}")
     print(f"Conflicts kept: {len(result.conflicts)}")
     print(f"Unmatched:      {len(result.unmatched)}")
+    if result.load.blanked:
+        print(f"Placeholders:   {len(result.load.blanked)} filler contacts blanked")
     if args.decisions:
         applied = result.match.decisions_applied
         print(f"Decisions used: {applied['same']} same, {applied['different']} different")

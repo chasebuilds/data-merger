@@ -2,9 +2,11 @@
 
 import hashlib
 
+import pytest
 from openpyxl import Workbook, load_workbook
 
-from data_merger import Config, merge_files, write_workbook
+from data_merger import Config, load_config, merge_files, write_workbook
+from data_merger.cli import main
 from data_merger.match import match_records
 from data_merger.records import Record, _set_keys, is_placeholder, read_table, sniff_delimiter
 from data_merger.workbook import safe_cell
@@ -84,8 +86,66 @@ def test_placeholder_values_are_not_evidence(write_csv):
     summary = dict(result.summary)
     assert summary["Placeholder emails and phones not used for matching"] == 5
     assert summary["Placeholder email: none@none.com"] == "3 rows"
-    # The value is still delivered; it is only ignored as a reason to merge.
-    assert result.merged[0].values["email"] == "none@none.com"
+    # By default the filler is blanked in the output; "keep" delivers it as typed.
+    assert result.merged[0].values["email"] == ""
+    kept = merge_files([a, b], Config(placeholders="keep"))
+    assert len(kept.merged) == 3
+    assert kept.merged[0].values["email"] == "none@none.com"
+
+
+def test_placeholders_are_blanked_and_each_one_is_logged(tmp_path, write_csv, capsys):
+    a = write_csv("a.csv", ["Name", "Email", "Phone"], [
+        ["Ana Ruiz", "test@test.com", "000-000-0000"],
+        ["Ben Cho", "noemail@acme.com", "n/a"],
+        ["Cy Dunn", "cy@example.com", "(614) 555-0101"],
+    ])
+    b = write_csv("b.csv", ["Name", "Email", "Phone"], [
+        ["Di Egan", "n/a", "614-555-0177"],
+        ["Cy Dunn", "cy@example.com", "6145550101"],
+    ])
+    result = merge_files([a, b])
+    blanked = sorted(result.load.blanked)
+    assert blanked == [
+        ("a.csv", 2, "email", "test@test.com"),
+        ("a.csv", 2, "phone", "(000) 000-0000"),  # as it would have shown in Merged
+        ("a.csv", 3, "email", "noemail@acme.com"),
+        ("a.csv", 3, "phone", "n/a"),
+        ("b.csv", 2, "email", "n/a"),
+    ]
+    by_name = {m.values["first_name"]: m.values for m in result.merged}
+    assert by_name["Ana"]["email"] == by_name["Ana"]["phone"] == ""
+    assert by_name["Di"]["email"] == "" and by_name["Di"]["phone"] == "(614) 555-0177"
+    # real contacts are untouched and still merge
+    assert by_name["Cy"]["email"] == "cy@example.com"
+    assert len(result.merged) == 4
+    summary = dict(result.summary)
+    assert summary["Placeholder emails and phones in the output"].startswith("blanked: 5 cells")
+
+    out = write_workbook(result, tmp_path / "out.xlsx")
+    rows = list(load_workbook(out)["Placeholders"].iter_rows(values_only=True))
+    assert rows[0][:5] == ("merged_id", "source_file", "source_row", "column", "value_removed")
+    assert len(rows) == 1 + 5
+    ana = next(m.merged_id for m in result.merged if m.values["first_name"] == "Ana")
+    assert ("a.csv", 2, "email", "test@test.com") in {r[1:5] for r in rows}
+    assert {r[0] for r in rows if r[1:3] == ("a.csv", 2)} == {ana}
+
+    # the CLI switch keeps them, and the Placeholders sheet is then empty
+    assert main(["merge", str(a), str(b), "-o", str(tmp_path / "k.xlsx"),
+                 "--keep-placeholders"]) == 0
+    kept = load_workbook(tmp_path / "k.xlsx")
+    assert kept["Placeholders"].max_row == 1
+    emails = [r[3] for r in kept["Merged"].iter_rows(min_row=2, values_only=True)]
+    assert "test@test.com" in emails
+
+
+def test_placeholder_mode_is_validated(tmp_path):
+    bad = tmp_path / "bad.toml"
+    bad.write_text('[options]\nplaceholders = "delete"\n', encoding="utf-8")
+    with pytest.raises(ValueError, match="placeholders"):
+        load_config(bad)
+    good = tmp_path / "good.toml"
+    good.write_text('[options]\nplaceholders = "keep"\n', encoding="utf-8")
+    assert load_config(good).placeholders == "keep"
 
 
 def test_identifier_profile_per_file(write_csv):

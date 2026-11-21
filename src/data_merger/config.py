@@ -7,6 +7,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 RULES = ("most_recent", "most_complete", "most_common", "source_priority")
+PLACEHOLDER_MODES = ("blank", "keep")
 
 
 @dataclass
@@ -27,6 +28,9 @@ class Config:
     one_per_source: bool = False
     strong_key_guard: bool = True
     lineage: bool = True
+    # "blank" clears filler contacts (none@none.com, 000-000-0000) from the output and logs
+    # each one on the Placeholders sheet; "keep" leaves them as typed. Matching never uses them.
+    placeholders: str = "blank"
 
     def rule_for(self, column: str) -> str:
         return self.column_rules.get(column, self.default_rule)
@@ -37,6 +41,8 @@ class Config:
         for column, rule in {**self.column_rules, "default": self.default_rule}.items():
             if rule not in RULES:
                 raise ValueError(f"Unknown rule '{rule}' for {column}. Use: {', '.join(RULES)}")
+        if self.placeholders not in PLACEHOLDER_MODES:
+            raise ValueError(f"options.placeholders must be one of: {', '.join(PLACEHOLDER_MODES)}")
 
 
 def load_config(path: str | Path | None) -> Config:
@@ -55,6 +61,7 @@ def load_config(path: str | Path | None) -> Config:
     config.max_cluster_size = int(options.get("max_cluster_size", config.max_cluster_size))
     config.one_per_source = bool(options.get("one_per_source", config.one_per_source))
     config.strong_key_guard = bool(options.get("strong_key_guard", config.strong_key_guard))
+    config.placeholders = str(options.get("placeholders", config.placeholders))
     rules = dict(data.get("rules", {}))
     config.default_rule = rules.pop("default", config.default_rule)
     config.column_rules.update(rules)
