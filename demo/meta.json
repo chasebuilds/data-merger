@@ -1,0 +1,7 @@
+{
+  "title": "Data Merger: Match records across messy files with lineage | Chase Builds",
+  "description": "Merge files with different columns and match the same customer across them, with conflicts kept, lineage and a review list. Runs in your browser.",
+  "url": "https://chasebuilds.github.io/data-merger/",
+  "image": "docs/demo.png",
+  "repo": "data-merger"
+}
