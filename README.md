@@ -2,9 +2,11 @@
 
 [![ci](https://github.com/chasebuilds/data-merger/actions/workflows/ci.yml/badge.svg)](https://github.com/chasebuilds/data-merger/actions/workflows/ci.yml) ![Python 3.11+](https://img.shields.io/badge/python-3.11%2B-blue) [![MIT license](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 
-Turns several overlapping customer lists (CSV or Excel, different headers, different formats) into one workbook where each real-world record appears once and every value can be traced back to the file and row it came from.
+**[Live demo: try it in your browser](https://chasebuilds.github.io/data-merger/)**. Drop in your own file or run the bundled sample with one click. The real package runs in the page with Pyodide, so files never leave your browser.
 
-![One customer as it appears in three different files above, and the single merged record below](docs/preview.png)
+[![The live demo after running the sample: the tool's summary, result tabs and output table](docs/demo.png)](https://chasebuilds.github.io/data-merger/)
+
+Turns several overlapping customer lists (CSV or Excel, different headers, different formats) into one workbook where each real-world record appears once and every value can be traced back to the file and row it came from.
 
 ## Measured result
 
@@ -34,6 +36,8 @@ Scored against generated data where the right answer is known. The table below i
 A false merge (two different people glued into one record) is the costly error, so the tool is tuned to send doubtful pairs to a review sheet instead of merging them. An earlier version made one false merge on this benchmark; BENCHMARK.md shows it, the rule added for it, and what that rule cost in recall.
 
 These numbers describe generated data only. On a client's files, match quality is measured per job with the audit sample described below.
+
+![One customer as it appears in three different files above, and the single merged record below](docs/preview.png)
 
 ## Before and after
 

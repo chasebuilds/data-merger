@@ -11,3 +11,4 @@ benchmark/data/
 .coverage
 coverage.xml
 .mypy_cache/
+_site/
