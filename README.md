@@ -204,3 +204,11 @@ The sample inputs were made with `python -m benchmark.generate --entities 30 --s
 ## License
 
 MIT. See [LICENSE](LICENSE).
+
+## More from Chase Builds
+
+- **[transaction-categorizer](https://github.com/chasebuilds/transaction-categorizer)**: Sorts bank and card transactions into categories and builds the monthly summary. ([live demo](https://chasebuilds.github.io/transaction-categorizer/))
+- **[excel-formula-auditor](https://github.com/chasebuilds/excel-formula-auditor)**: Finds broken formulas, hard-coded numbers and dead links before they cost you. ([live demo](https://chasebuilds.github.io/excel-formula-auditor/))
+- **[excel-cleaner-pro](https://github.com/chasebuilds/excel-cleaner-pro)**: Cleans messy spreadsheets and logs every change, so nothing disappears quietly. ([live demo](https://chasebuilds.github.io/excel-cleaner-pro/))
+
+[All projects, sorted by industry](https://github.com/chasebuilds) · [chasebuilds.github.io](https://chasebuilds.github.io)
